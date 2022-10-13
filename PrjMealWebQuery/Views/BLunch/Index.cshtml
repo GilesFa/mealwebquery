@@ -1,0 +1,369 @@
+﻿
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "餐點查詢作業";
+}
+<style>
+    .modal-dialog-full-width {
+        width: 100% !important;
+        height: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        max-width: none !important;
+        background-color: transparent;
+    }
+
+    .modal-content-full-width {
+        height: auto !important;
+        min-height: 100% !important;
+        border-radius: 0 !important;
+        /*background-color: #ececec !important*/
+        background-color: transparent;
+    }
+
+    .modal-body {
+        height: 80vh !important;
+        font-size: 20vh !important;
+    }
+
+    #statDataDiv {
+        width:90vw;
+    }
+</style>
+
+<div class="text-center">
+    <h1 class="display-4">B餐查詢作業 Running On Docker</h1>
+</div>
+
+<!--
+
+<div id="queryMealDiv">
+    <label class="h2">請選擇B餐日期</label>
+    <select id="bLunchMainDate" class="h2">
+        <option value="error">無B餐日期</option>
+    </select>
+    <button id="BtnQryDetail" class="btn btn-info">查詢</button>
+</div>
+
+-->
+
+
+<div id="queryMealDiv" class="input-group input-group-lg">
+    <div id="BtnIsInBlunchDetail" class="input-group-prepend">
+        <span class="input-group-text text-white bg-info">請選擇B餐日期</span>
+    </div>
+    <select id="bLunchMainDate" class="h2 form-control">
+        <option value="error">無B餐日期</option>
+    </select>
+    <button id="BtnQryDetail" class="btn btn-info ">查詢</button>
+    <!--<textarea class="form-control" aria-label="With textarea"></textarea>-->
+</div>
+<div id="bLunchMealDateSelected" class="d-none"></div>
+<!--
+<div id="qryEmpDiv" class="d-none">
+    <button id="BtnIsInBlunchDetail" class="btn btn-info btn-lg disabled h2">查詢訂餐</button>
+    <input id="InputCardNo" type="text" value="" placeholder="請刷卡" class="form-control" />
+</div>
+-->
+
+<div id="qryEmpDiv" class="input-group input-group-lg d-none">
+    <div id="BtnIsInBlunchDetail" class="input-group-prepend">
+        <span class="input-group-text text-white bg-info">查詢訂餐</span>
+    </div>
+    <input id="InputCardNo" type="text" value="" placeholder="請刷卡" class="form-control" />
+    <!--<textarea class="form-control" aria-label="With textarea"></textarea>-->
+</div>
+
+<div id="statDataDiv" class="d-none" style="font-size:4rem;">
+    已領：<span id="IsTakedYCount">0</span>
+    &nbsp;
+    未領<span id="IsTakedNCount">0</span>
+</div>
+
+<div id="queryResult">
+
+</div>
+
+<!-- Modal -->
+<div id="myModal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="exampleModalCenterTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-full-width" role="document">
+        <div class="modal-content modal-content-full-width" style="background-color:transparent">
+            <div id="IsRightEmpModal" class="modal-body text-center">
+                <!-- 這邊會由js畫○或╳ -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="d-xl-none" style="height:2rem;">&nbsp;</div>
+
+<div class="container-fluid">
+    <div class="row">
+        <div id="emplDataDiv" class="col col-12 h3">
+
+        </div>
+    </div>
+
+</div>
+
+<span id="StrBlunchMains" class="d-none">@ViewBag.BLunchMains</span>
+
+<script>
+
+    var bLunchDetails = [];
+    var employees = [];
+
+    //解決ie沒有find的方法
+    if (!Array.prototype.find) {
+        Array.prototype.find = function (callback) {
+            return callback && (this.filter(callback) || [])[0];
+        };
+    }
+
+    /**
+     * 將B餐日期撈出
+     **/
+    var RenderBLunchMainDates = function () {
+        var bLunchMains = JSON.parse($("#StrBlunchMains").text());
+        if (bLunchMains && bLunchMains.length && bLunchMains.length > 0) {
+            $("#bLunchMainDate").empty();
+            bLunchMains.forEach(function (bLunchMain) {
+                var $option = $("<option />").text(bLunchMain.MEAL_DATE).val(bLunchMain.MEAL_DATE);
+                $option.appendTo("#bLunchMainDate");
+            });
+        }
+    };
+
+
+    /**
+     * 檢查B餐日期
+     **/
+    var CheckBLunchDate = function () {
+        $("#BtnQryDetail").click(function () {
+            var mealDate = $("#bLunchMainDate").val();
+            if (mealDate == "error") {
+                alert("無B餐日期");
+                return;
+            }
+
+            RenderStatisticData(mealDate);
+            $("#queryMealDiv").addClass("d-none");
+            $("#qryEmpDiv,#statDataDiv").removeClass("d-none");
+            $("#InputCardNo").val("").focus();
+
+        });
+    };
+
+    /**
+     * 確保查詢時focus在input上
+     **/
+    var AddBlurEventListener = function () {
+        $("#InputCardNo").on("blur", function (event) {
+            setTimeout(function () {
+                $("#InputCardNo").val("").focus();
+            }, 500);
+        });
+    };
+
+    /**
+     * 確認員工B餐資料，並顯示結果於畫面上
+     **/
+    var CheckEmpInBlunchDetail = function () {
+        $("#InputCardNo").on("keyup change", function (event) {
+            var url = '@Url.Action("GetEmpNoFromERP")';
+
+            if (event.keyCode === 13) {
+                // 查詢ERP工號
+                var cardNo = $("#InputCardNo").val();
+
+                $.post({
+                    url: url, data: { "CARDSNTH": cardNo}
+                }).then(function (empData) {
+                    var empNo = "error";
+                    var empName = "";
+                    var mealDate = $("#bLunchMainDate").val();
+
+                    if (empData && empData.length && empData.length > 0) {
+                        empNo = empData[0]["EMP_NO"];
+                        empName = ReplaceCharacter(empData[0]["EMP_NAME"]) ;
+                    }
+
+                    if (empNo == "error") {
+                        ShowErrorMessageAtModal("未知的卡號");
+                        return;
+                    }
+
+                    if (empNo != "error") {
+                        // 查詢B餐
+                        var url2 = '@Url.Action("GetBLunchDataByEmpNo")';
+                        $.post({
+                            url: url2, data: { "MEAL_DATE": mealDate, "EMP_NO": empNo }
+                        }).then(function (bdata) {
+
+                            var description = empNo + " " + empName+ "<br/>" + " 沒訂餐";
+                            var colorName = "red";
+                            var modalTextColor = "red";
+                            var backgroundColorName = "transparent";
+
+
+                            if (bdata.length && bdata.length > 0) {
+                                // 有訂餐的同仁
+                                colorName = "black";
+                                modalTextColor = "yellow";
+                                backgroundColorName = "green";
+                                if (bdata[0]["IsTaked"] == "Y") {
+                                    description = empNo + " " + empName + "<br/>" + "重複刷卡";
+                                } else {
+                                    description = empNo + " " + empName + "<br/>" + "有訂餐";
+                                }
+                                //設定為已領餐
+                                let bLunchDataIsTakedByEmpNoUrl = '@Url.Action("SetBLunchDataIsTakedByEmpNo")';
+                                let bLunchDataIsTakedByEmpNoParas = { "MEAL_DATE": mealDate, "EMP_NO": empNo };
+                                $.ajax({ url: bLunchDataIsTakedByEmpNoUrl, data: bLunchDataIsTakedByEmpNoParas });
+                            }
+                            // 顯示刷卡結果
+                            PrependMessageToQueryResult(description, colorName);
+                            //ShowMessageAtModal(description, modalTextColor, backgroundColorName);
+
+                            // 已取餐/總人數資訊顯示
+                            RenderStatisticData(mealDate);
+
+                        }, function (err0, err1) {
+                                //FIXME: 跟下面的ERROR合併
+                                console.error(err0);
+                                //console.error(err1);
+                                //ShowErrorMessageAtModal("訂餐資料服務異常");
+                                PrependMessageToQueryResult("訂餐資料服務異常", "red");
+                        });
+                    }
+                }, function (err0, err1) {
+                        //FIXME: 跟上面的ERROR合併
+                        console.error(err0);
+                        //console.error(err1);
+                        //ShowErrorMessageAtModal("員工資料服務異常");
+                        PrependMessageToQueryResult("員工資料服務異常","red");
+                });
+
+                setTimeout(function () {
+                    $("#InputCardNo").val("").focus();
+                }, 0);
+
+            }
+        })
+    };
+
+    /**
+     * 將字串第二碼轉為○
+     * @@param {string} inputStr 傳入的字串
+     * @@return {string} output 回傳的字串
+     **/
+    var ReplaceCharacter = function (inputStr) {
+        let output = "";
+        if (inputStr && typeof inputStr == "string" && inputStr.length > 1) {
+            output = inputStr.substring(0, 1) + "○" + inputStr.substring(2, inputStr.length);
+        } else {
+            output = "未知";
+        }
+        return output;
+    };
+
+    /**
+     * 抓取該日期B餐統計資料並顯示
+     * @@param {string} mealDate 傳入的日期字串
+     **/
+    var RenderStatisticData=function(mealDate){
+        let bLunchStatisticUrl = '@Url.Action("GetBLunchStatistic")';
+        let bLunchStatisticParas = { "MEAL_DATE": mealDate };
+        $.ajax({ url: bLunchStatisticUrl, data: bLunchStatisticParas })
+            .then(function (statisticData) {
+
+                console.error(statisticData);
+
+                //TODO: 已取餐/總人數資訊顯示資料
+                let YCount = 0;
+                let NCount = 0;
+                statisticData.forEach(function (groupData) {
+                    if (groupData.IsTaked && groupData.IsTaked == "Y") {
+                        YCount += groupData.Quantity;
+                    }
+
+                    if (groupData.IsTaked && groupData.IsTaked == "N") {
+                        NCount += groupData.Quantity;
+                    }
+                });
+
+                $("#IsTakedYCount").text(YCount);
+                $("#IsTakedNCount").text(NCount);
+            }, function (err, err2) {
+                    console.error("統計取餐人數服務錯誤");
+                    console.error(err.responseText);
+
+         });
+
+
+    };
+
+    /**
+     * 於modal顯示錯誤訊息並自動關閉
+     * @@param {string} errorMessage 錯誤訊息
+     **/
+    var ShowErrorMessageAtModal=function(errorMessage){
+        $("#IsRightEmpModal").text(errorMessage).css("color", "red");
+        $("#myModal .modal-content").css({ "background-color": "transparent" });
+        $("#myModal").modal("show");
+        setTimeout(function () {
+            $("#myModal").modal("hide");
+        }, 800);
+    };
+
+    /**
+     * 於modal顯示訊息並自動關閉
+     * @@param {string} descriptionMessage 訊息
+     * @@param {string} color 字的顏色
+     * @@param {string} backgroundColor 背景顏色
+     **/
+    var ShowMessageAtModal = function (descriptionMessage, color, backgroundColor) {
+        //$("#IsRightEmpModal").text(descriptionMessage).css("color", color);
+        $("#IsRightEmpModal").html(descriptionMessage).css("color", color);
+        $("#myModal .modal-content").css({ "background-color": backgroundColor });
+        $("#myModal").modal("show");
+        setTimeout(function () {
+            $("#myModal").modal("hide");
+        }, 800);
+
+    };
+
+    /**
+     * 將訊息顯示在 queryResult 上
+     * @@param {string} message 文字訊息
+     * @@param {string} colorName 顏色
+     **/
+    var PrependMessageToQueryResult=function(message,colorName){
+        if(!message){
+            return ;
+        }
+        /* 將<br/>換成空白 */
+        let desc = message.replace(/<br\s*[\/]?>/gi," ");
+
+        if(!colorName){
+            colorName = "black";
+        }
+
+        let $p = $("<p/>")
+        .text(desc)
+        .css({ "color": colorName,"font-size":"4rem"})
+        .prependTo("#queryResult");
+    };
+
+
+    $(document).ready(function () {
+        /*抓取B餐*/
+        RenderBLunchMainDates();
+        /* 檢查B餐日期*/
+        CheckBLunchDate();
+        /**/
+        CheckEmpInBlunchDetail();
+        /**/
+        AddBlurEventListener();
+    });
+</script>

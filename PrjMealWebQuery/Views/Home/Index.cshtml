@@ -1,0 +1,96 @@
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "餐點查詢作業";
+}
+
+
+<style>
+    .modal-dialog-full-width {
+        width: 100% !important;
+        height: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        max-width: none !important;
+        background-color: transparent;
+    }
+
+    .modal-content-full-width {
+        height: auto !important;
+        min-height: 100% !important;
+        border-radius: 0 !important;
+        /*background-color: #ececec !important*/
+        background-color: transparent;
+    }
+
+    .modal-body {
+        height: 80vh !important;
+        font-size: 20vh !important;
+    }
+
+    .bg-lightsteelblue {
+        background-color:lightsteelblue;
+    }
+</style>
+
+<div class="text-center">
+    <h1 class="display-4">B餐查詢作業</h1>
+</div>
+
+<div class="container">
+    <div class="card-columns">
+        <div class="card border border-dark">
+            <div class="card-header bg-lightsteelblue border-dark">B餐訂餐查詢 running on docker 20220717</div>
+            <div class="card-body ">
+                <p class="card-title">
+                    查詢B餐訂餐名單
+                </p>
+                <p class="card-text">
+                    <a class="btn btn-primary stretched-link" href='@Url.Action("Index","BLunch")'>
+                        查詢
+                    </a>
+                </p>
+            </div>
+        </div>
+        <div class="card border border-dark d-none">
+            <div class="card-header bg-lightsteelblue border-dark">自助餐查詢</div>
+            <div class="card-body ">
+                <p class="card-title">
+                    查詢自助餐名單
+                </p>
+                <p class="card-text">
+                    <a class="btn btn-primary stretched-link" href=' @Url.Action("Index","Meal")'>
+                        查詢
+                    </a>
+                </p>
+            </div>
+        </div>
+    </div>
+    
+
+</div>
+
+<script>
+    $(document).ready(function () {
+        /*先讓畫面自動跳轉*/
+        window.setTimeout(function () {
+            window.location.href = '@Url.Action("Index","BLunch")';
+        }, 0);
+    });
+
+</script>
+
+
+
+
+<!--
+
+<div id="queryMealDiv">
+    <label class="h2">請選擇B餐日期</label>
+    <select id="bLunchMainDate" class="h2">
+        <option value="error">無B餐日期</option>
+    </select>
+    <button id="BtnQryDetail" class="btn btn-info">查詢</button>
+</div>
+
+-->
+

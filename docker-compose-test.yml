@@ -1,0 +1,18 @@
+nginx-test:
+    image: gitlab.umec.com.tw:8443/images/webapp-mealwebquery-nginx-test 
+    container_name: nginx-test
+    links:
+        - kestrel-test:kestrel
+    ports:
+        - "8080:80"
+kestrel-test:
+    image: gitlab.umec.com.tw:8443/images/webapp-mealwebquery-test
+    container_name: webapp-test
+    ports:
+        - "80"
+busybox-test:
+    image: sequenceiq/busybox
+    container_name: busybox-test
+    links:
+        - nginx-test:nginx-test
+    command: /bin/bash -c 'sleep 3600'

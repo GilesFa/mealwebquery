@@ -1,0 +1,19 @@
+nginx-prod:
+    image: gitlab.umec.com.tw:8443/images/webapp-mealwebquery-nginx-prod 
+    container_name: nginx-prod
+    links:
+        - kestrel-prod:kestrel
+    ports:
+        - "8080:80"
+kestrel-prod:
+    image: gitlab.umec.com.tw:8443/images/webapp-mealwebquery-prod
+    container_name: webapp-prod
+    ports:
+        - "80"
+busybox-prod:
+    image: sequenceiq/busybox
+    container_name: busybox-prod
+    links:
+        - nginx-prod:nginx-prod
+    command: /bin/bash -c 'sleep 3600'
+#

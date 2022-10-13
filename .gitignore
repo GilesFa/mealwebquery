@@ -1,0 +1,10 @@
+*.dll
+*.json
+*.pdb
+/.vs/*
+/PrjMealWebQuery/bin/*
+/PrjMealWebQuery/obj/*
+/PrjMealWebQuery/wwwroot/lib/bootstrap/*
+/PrjMealWebQuery/wwwroot/lib/jquery/*
+/PrjMealWebQuery/wwwroot/lib/jquery-validation/*
+/PrjMealWebQuery/wwwroot/lib/jquery-validation-unobtrusive/*

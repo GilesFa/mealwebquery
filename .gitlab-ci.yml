@@ -1,0 +1,219 @@
+#自訂義Gitlab CI/CD的流程階段
+stages:
+  - sonarqube-check
+  - compile
+  - build-image
+  - test-deploy
+  - testing
+  - clean
+  - prod-deploy
+
+#為test階段前的程式碼進行編譯
+compile-for-testing:
+  # image: mcr.microsoft.com/dotnet/sdk:6.0 #指定docker gitlab-runner建立dotnet sdk容器進行以下的操作
+  # image: gitlab.umec.com.tw:8443/images/mcr.microsoft.com/dotnet/sdk #指定docker gitlab-runner建立dotnet sdk容器進行以下的操作
+  image: mcr.microsoft.com/dotnet/sdk
+  stage: compile
+  only:
+    - master
+    - develop
+  # cache:
+  #   untracked: true
+  script: #gitlab runner會把專案下的檔案複製到dotnet sdk容器中，並且以此為工作目錄
+    - echo "build for testing"
+    - pwd
+    - dotnet restore
+    - dotnet publish -o out -c Release
+    - ls
+    - ls out
+  artifacts: #將out產出物存放在gitlab的pipeline的紀錄中
+    expire_in: 5 days
+    paths:
+      #實際在dotnet sdk容器的絕對路徑 : /builds/u09138/mywebapp/out/
+      - ./out/
+  tags:
+    - webapp-builder #指定使用哪個gitlab runner運行此job
+
+#為prodction階段前的程式碼進行編譯
+compile-for-prod:
+  image: mcr.microsoft.com/dotnet/sdk #指定docker gitlab-runner建立dotnet sdk容器進行以下的操作
+  stage: compile
+  only:
+    - prodction
+  script: #gitlab runner會把專案下的檔案複製到dotnet sdk容器中，並且以此為工作目錄
+    - echo "build for prodction"
+    - pwd
+    - dotnet restore
+    - dotnet publish -o out -c Release
+    - ls out
+  artifacts: #將out產出物存放在gitlab的pipeline的紀錄中
+    expire_in: 5 days
+    paths:
+      #實際在dotnet sdk容器的絕對路徑 : /builds/u09138/mywebapp/out/
+      - ./out/
+  tags:
+    - webapp-builder #指定使用哪個gitlab runner運行此job
+
+#為後面進行test階段build docker image
+build-docker-image-for-testing:
+  image: gitlab/dind
+  # image: docker
+  stage: build-image
+  only:
+    - master
+    - develop
+  dependencies:
+    - compile-for-testing  # 这里一定要依赖build-job，不然dockerfile里面的out目录无法使用
+  script:
+    - pwd
+    - ls
+    - ls ./out/
+    - docker ps
+    - chmod +x ./check-images-test.sh
+    - sh ./check-images-test.sh #檢查是否存在上次未清理的test容器與image
+    - chmod +x ./check-images-prod.sh
+    - sh ./check-images-prod.sh #檢查是否存在上次未清理的prod容器與image
+    - docker build -t webapp-mealwebquery-test .
+    - docker build -t webapp-mealwebquery-nginx-test ./nginx
+  tags:
+    - webapp-deploy
+
+#為後面進行prodction階段build docker image
+build-docker-image-for-prod:
+  image: gitlab/dind
+  stage: build-image
+  only:
+    - prodction
+  dependencies:
+    - compile-for-prod # 这里一定要依赖build-job，不然dockerfile里面的out目录无法使用
+  script:
+    - pwd
+    - ls
+    - ls ./out/
+    - docker ps
+    - chmod +x ./check-images-prod.sh
+    - sh ./check-images-prod.sh #檢查是否存在上次未清理的prod容器
+    - docker build -t gitlab.umec.com.tw:8443/images/webapp-mealwebquery-prod .
+    - docker tag gitlab.umec.com.tw:8443/images/webapp-mealwebquery-prod:latest gitlab.umec.com.tw:8443/images/webapp-mealwebquery-prod:$CI_COMMIT_SHORT_SHA
+    - docker build -t gitlab.umec.com.tw:8443/images/webapp-mealwebquery-nginx-prod ./nginx
+    # 这里可以添加将生成好的image上传到dockerhub或者docker本地仓库
+    #- echo $DOCKERHUB_TOKEN
+    #- docker login -u gilesfa -p $DOCKERHUB_TOKEN
+    - docker login  --username u09138 --password Umec@123 https://gitlab.umec.com.tw:8443
+    - docker push gitlab.umec.com.tw:8443/images/webapp-mealwebquery-prod:latest
+    - docker push gitlab.umec.com.tw:8443/images/webapp-mealwebquery-prod:$CI_COMMIT_SHORT_SHA
+    - docker push gitlab.umec.com.tw:8443/images/webapp-mealwebquery-nginx-prod:latest
+  tags:
+    - webapp-deploy
+
+#為testing階段進行容器deploy
+test-depoly for testing:
+  image: gitlab/dind
+  stage: test-deploy
+  only:
+    - master
+    - develop
+  script:
+    - ls
+    - docker-compose -f docker-compose-test.yml up -d
+    # - sh ./clean-dockerimg.sh
+    # - docker system prune --force
+ 
+  tags:
+    - webapp-deploy
+
+#為prodction testing階段進行容器deploy
+test-depoly for prodction:
+  image: gitlab/dind
+  stage: test-deploy
+  only:
+    - prodction
+  script:
+    - ls
+    - docker login  --username u09138 --password Umec@123 https://gitlab.umec.com.tw:8443
+    # - docker login -u gilesfa -p $DOCKERHUB_TOKEN
+    - docker-compose -f docker-compose-prod.yml up -d
+    # - sh ./clean-dockerimg.sh
+    # - docker system prune --force
+  tags:
+    - webapp-deploy
+
+#進行容器服務讀取測試
+testing-test:
+  image: gitlab/dind
+  stage: testing
+  only:
+    - master
+    - develop
+  script:
+    - docker exec busybox-test curl http://nginx-test:80
+    - echo "test testing job pass"
+    # - docker system prune --force
+  tags:
+    - webapp-deploy
+
+testing-prod:
+  image: gitlab/dind
+  stage: testing
+  only:
+    - prodction
+  script:
+    - docker exec busybox-prod curl http://nginx-prod:80
+    - echo "prod testing job pass"
+    # - docker system prune --force
+  tags:
+    - webapp-deploy
+
+#清理gitlab-runner裡的docker images
+clean:
+  stage: clean
+  only:
+    - prodction
+    - master
+    - develop
+  script:
+    - ls
+    # - docker system prune --all --force --volumes #清理未被容器運行的所有images與volume
+    # - docker system prune --force
+  tags:
+    - gitlab-runner-shell
+
+#進行正式環境容器服務佈署
+depoly-for-prodction:
+  stage: prod-deploy
+  only:
+    - prodction
+  script:
+    - ls
+    - chmod +x ./check-images-prod-deploy.sh
+    - sh ./check-images-prod-deploy.sh #檢查是否存在上次未清理的prod容器
+    - docker login  --username u09138 --password Umec@123 https://gitlab.umec.com.tw:8443
+    - docker-compose -f docker-compose-prod.yml up -d
+    - docker system prune --force
+  when: manual
+  tags:
+    - webserver-shell
+
+sonarqube-check:
+  image: mcr.microsoft.com/dotnet/core/sdk:latest
+  stage: sonarqube-check
+  variables:
+    SONAR_USER_HOME: "${CI_PROJECT_DIR}/.sonar"  # Defines the location of the analysis task cache
+    GIT_DEPTH: "0"  # Tells git to fetch all the branches of the project, required by the analysis task
+  cache:
+    key: "${CI_JOB_NAME}"
+    paths:
+      - .sonar/cache
+  script: 
+      - "apt-get update"
+      - "apt-get install --yes openjdk-11-jre"
+      - "dotnet tool install --global dotnet-sonarscanner"
+      - "export PATH=\"$PATH:$HOME/.dotnet/tools\""
+      - "dotnet sonarscanner begin /k:\"mealwebquery\" /d:sonar.login=\"$SONAR_TOKEN\" /d:\"sonar.host.url=$SONAR_HOST_URL\" "
+      - "dotnet build"
+      - "dotnet sonarscanner end /d:sonar.login=\"$SONAR_TOKEN\""
+  allow_failure: true
+  only:
+    - master # or the name of your main branch
+  tags:
+    - webapp-deploy
