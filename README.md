@@ -2,9 +2,9 @@
 
 B餐刷卡!! CI/CD
 
-develop server : http://10.0.99.91:8080
+develop server : http://10.0.xxx.xxx:8080
 
-prodction server : http://10.0.99.98:8080/
+prodction server : http://10.0.xxx.xx:8080/
 
 ## Getting started
 

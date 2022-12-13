@@ -99,7 +99,7 @@ build-docker-image-for-prod:
     # 这里可以添加将生成好的image上传到dockerhub或者docker本地仓库
     #- echo $DOCKERHUB_TOKEN
     #- docker login -u gilesfa -p $DOCKERHUB_TOKEN
-    - docker login  --username u09138 --password Umec@123 https://gitlab.umec.com.tw:8443
+    - docker login  --username xxxx --password xxxx https://gitlab.umec.com.tw:8443
     - docker push gitlab.umec.com.tw:8443/images/webapp-mealwebquery-prod:latest
     - docker push gitlab.umec.com.tw:8443/images/webapp-mealwebquery-prod:$CI_COMMIT_SHORT_SHA
     - docker push gitlab.umec.com.tw:8443/images/webapp-mealwebquery-nginx-prod:latest
@@ -130,7 +130,7 @@ test-depoly for prodction:
     - prodction
   script:
     - ls
-    - docker login  --username u09138 --password Umec@123 https://gitlab.umec.com.tw:8443
+    - docker login  --username xxxxx --password xxxxx https://gitlab.umec.com.tw:8443
     # - docker login -u gilesfa -p $DOCKERHUB_TOKEN
     - docker-compose -f docker-compose-prod.yml up -d
     # - sh ./clean-dockerimg.sh
@@ -187,7 +187,7 @@ depoly-for-prodction:
     - ls
     - chmod +x ./check-images-prod-deploy.sh
     - sh ./check-images-prod-deploy.sh #檢查是否存在上次未清理的prod容器
-    - docker login  --username u09138 --password Umec@123 https://gitlab.umec.com.tw:8443
+    - docker login  --username xxxxx --password xxxxx https://gitlab.umec.com.tw:8443
     - docker-compose -f docker-compose-prod.yml up -d
     - docker system prune --force
   when: manual
